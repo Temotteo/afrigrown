@@ -108,6 +108,9 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     is_admin = db.Column(db.Boolean, default=False)
 
+    # NEW: events done by this user
+    status_events = db.relationship("StatusEvent", back_populates="actor", lazy=True)
+
     def set_password(self, pw):
         self.password_hash = generate_password_hash(pw)
 
@@ -177,6 +180,9 @@ class StatusEvent(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     inquiry = db.relationship("Inquiry", back_populates="events")
+
+    # NEW: who acted
+    actor = db.relationship("User", back_populates="status_events")
 
 
 # ---------- Routes ----------
