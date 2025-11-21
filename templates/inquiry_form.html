@@ -1,0 +1,145 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'New Inquiry' if mode == 'new' else 'Edit Inquiry' }} — AfriGrown{% endblock %}
+
+{% block content %}
+<div class="container py-4" style="max-width: 720px;">
+
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h4 class="fw-bold">
+      {% if mode == 'new' %}New Inquiry{% else %}Edit Inquiry{% endif %}
+    </h4>
+    <a href="{{ url_for('index') }}" class="btn btn-outline-secondary btn-sm">← Back</a>
+  </div>
+
+  <form method="POST" novalidate>
+    {{ form.hidden_tag() }}
+
+    <!-- Client Section -->
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header bg-light fw-semibold">
+        Client Information
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          {{ form.client_name.label(class="form-label") }}
+          {{ form.client_name(class="form-control", placeholder="Client Name", autocomplete="off", id="client_name") }}
+          {{ form.client_id() }}
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            {{ form.client_phone.label(class="form-label") }}
+            {{ form.client_phone(class="form-control", placeholder="+258 84 000 0000") }}
+          </div>
+          <div class="col-md-6 mb-3">
+            {{ form.client_email.label(class="form-label") }}
+            {{ form.client_email(class="form-control", placeholder="client@example.com") }}
+          </div>
+        </div>
+
+        <div class="mb-3">
+          {{ form.client_company.label(class="form-label") }}
+          {{ form.client_company(class="form-control", placeholder="Company Name") }}
+        </div>
+      </div>
+    </div>
+
+    <!-- Inquiry Section -->
+    <div class="card mb-4 shadow-sm">
+      <div class="card-header bg-light fw-semibold">
+        Inquiry Details
+      </div>
+      <div class="card-body">
+        <div class="mb-3">
+          {{ form.title.label(class="form-label") }}
+          {{ form.title(class="form-control", placeholder="Inquiry title, e.g. 'Smart Lighting Proposal'") }}
+        </div>
+
+        <div class="mb-3">
+          {{ form.description.label(class="form-label") }}
+          {{ form.description(class="form-control", rows="3", placeholder="Describe what the client needs...") }}
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            {{ form.priority.label(class="form-label") }}
+            {{ form.priority(class="form-select") }}
+          </div>
+
+          <div class="col-md-3 mb-3">
+            {{ form.budget.label(class="form-label") }}
+            {{ form.budget(class="form-control", placeholder="e.g. 50000") }}
+          </div>
+
+          <div class="col-md-3 mb-3">
+            {{ form.currency.label(class="form-label") }}
+            {{ form.currency(class="form-select") }}
+          </div>
+        </div>
+
+        <div class="mb-3">
+          {{ form.expected_delivery.label(class="form-label") }}
+          {{ form.expected_delivery(class="form-control", type="date") }}
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end">
+      <button type="submit" class="btn btn-primary px-4">
+        <i class="bi bi-save me-1"></i> Save Inquiry
+      </button>
+    </div>
+  </form>
+
+</div>
+
+<!-- Optional JS: simple autocomplete for clients -->
+<script>
+document.addEventListener("DOMContentLoaded", function(){
+  const input = document.getElementById("client_name");
+  const hidden = document.querySelector("input[name='client_id']");
+  let timeout = null;
+
+  input.addEventListener("input", function(){
+    clearTimeout(timeout);
+    const query = this.value.trim();
+    if (query.length < 2) return;
+    timeout = setTimeout(() => {
+      fetch(`/clients/search?q=${encodeURIComponent(query)}`)
+        .then(r => r.json())
+        .then(data => {
+          // Very simple dropdown-like suggestion
+          let list = document.getElementById("client-suggestions");
+          if (!list) {
+            list = document.createElement("div");
+            list.id = "client-suggestions";
+            list.className = "list-group position-absolute shadow";
+            input.parentNode.appendChild(list);
+          }
+          list.innerHTML = "";
+          if (data.length === 0) return list.remove();
+          data.forEach(c => {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.className = "list-group-item list-group-item-action";
+            item.textContent = `${c.name} (${c.company || c.email || c.phone || ""})`;
+            item.onclick = () => {
+              input.value = c.name;
+              hidden.value = c.id;
+              list.remove();
+            };
+            list.appendChild(item);
+          });
+        });
+    }, 300);
+  });
+  document.addEventListener("click", e => {
+    if (!input.contains(e.target)) {
+      const list = document.getElementById("client-suggestions");
+      if (list) list.remove();
+    }
+  });
+});
+</script>
+
+{% endblock %}

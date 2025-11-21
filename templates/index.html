@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard — AfriGrown{% endblock %}
+{% block content %}
+
+<div class="row g-3">
+  <!-- KPI cards -->
+  <div class="col-6 col-md-3">
+    <div class="card p-3">
+      <div class="text-muted small">Total Inquiries</div>
+      <div class="fs-3 fw-bold">{{ stats.total }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-3">
+      <div class="text-muted small">New</div>
+      <div class="fs-3 fw-bold">{{ stats.new }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-3">
+      <div class="text-muted small">Quoted</div>
+      <div class="fs-3 fw-bold">{{ stats.quoted }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card p-3">
+      <div class="text-muted small">In Transit</div>
+      <div class="fs-3 fw-bold">{{ stats.shipped }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="card p-3 mt-3">
+  <div class="d-flex justify-content-between align-items-center">
+    <h6 class="mb-0">Recent Inquiries</h6>
+    <a class="btn btn-sm btn-success" href="{{ url_for('new_inquiry') }}">+ New Inquiry</a>
+  </div>
+  <hr>
+  <div class="list-group list-group-flush">
+    {% for inq in recent %}
+      <a href="{{ url_for('inquiry_detail', inquiry_id=inq.id) }}"
+         class="list-group-item list-group-item-action d-flex justify-content-between align-items-start">
+        <div class="me-3">
+          <div class="fw-semibold">{{ inq.title }}</div>
+          <div class="small text-muted">
+            {{ inq.client.name }}{% if inq.client.company %} · {{ inq.client.company }}{% endif %}
+            • {{ inq.updated_at.strftime('%Y-%m-%d %H:%M') }}
+          </div>
+        </div>
+        <span class="badge text-bg-secondary align-self-center">{{ inq.status }}</span>
+      </a>
+    {% else %}
+      <div class="list-group-item text-muted">No inquiries yet.</div>
+    {% endfor %}
+  </div>
+</div>
+
+{% endblock %}

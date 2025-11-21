@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}Login — AfriGrown{% endblock %}
+{% block content %}
+<section class="auth-hero">
+  <div class="container" style="max-width: 440px;">
+    <!-- Brand header with logo -->
+    <div class="text-center mb-4">
+      <img src="{{ url_for('static', filename='img/Afrigrown-logo.png') }}"
+           alt="AfriGrown Logo"
+           class="login-logo mb-2">
+    </div>
+
+    <div class="card auth-card p-4 p-md-5">
+      <h5 class="mb-3 text-center">Welcome back</h5>
+      <p class="text-muted small mb-4 text-center">
+        Sign in to access AfriGrown procurement inquiries
+      </p>
+
+      <form method="post" novalidate>
+        {{ form.hidden_tag() }}
+
+        <div class="mb-3">
+          {{ form.email.label(class="form-label") }}
+          {{ form.email(class="form-control form-control-lg",
+                        placeholder="you@example.com",
+                        autocomplete="username") }}
+        </div>
+
+        <div class="mb-2">
+          <label class="form-label">Password</label>
+          <div class="input-group">
+            {{ form.password(class="form-control form-control-lg",
+                             placeholder="••••••••",
+                             id="password",
+                             autocomplete="current-password") }}
+            <button class="btn btn-outline-secondary" type="button"
+                    id="togglePwd" aria-label="Show/Hide password">
+              Show
+            </button>
+          </div>
+        </div>
+
+        <button class="btn btn-primary btn-lg w-100 mt-3" type="submit">
+          Sign in
+        </button>
+      </form>
+
+      <div class="credit mt-4 text-center">
+        <small>© {{ now().year }} AfriGrown</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function(){
+    const btn = document.getElementById('togglePwd');
+    const input = document.getElementById('password');
+    if (btn && input) {
+      btn.addEventListener('click', function(){
+        const type = input.getAttribute('type') === 'password' ? 'text' : 'password';
+        input.setAttribute('type', type);
+        btn.textContent = type === 'password' ? 'Show' : 'Hide';
+      });
+    }
+  })();
+</script>
+{% endblock %}

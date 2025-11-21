@@ -1,0 +1,134 @@
+{% extends 'base.html' %}
+{% block title %}Inquiry #{{ inq.id }} — {{ inq.title }}{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+
+  <!-- Main column -->
+  <div class="col-12 col-lg-8">
+
+    <!-- Header card -->
+    <div class="card p-3">
+      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+        <div>
+          <h5 class="mb-1">{{ inq.title }}</h5>
+          <div class="small text-muted">
+            Client: <strong>{{ inq.client.name }}</strong>
+            {% if inq.client.company %} · {{ inq.client.company }}{% endif %}
+          </div>
+        </div>
+        <span class="badge text-bg-secondary">{{ inq.status }}</span>
+      </div>
+
+      {% if inq.description %}
+        <p class="mt-2 mb-2">{{ inq.description }}</p>
+      {% endif %}
+
+      <div class="row g-2 small text-muted">
+        <div class="col-auto">Priority: <strong>{{ inq.priority }}</strong></div>
+        {% if inq.budget %}
+          <div class="col-auto">Budget: <strong>{{ inq.currency }} {{ '%.2f'|format(inq.budget) }}</strong></div>
+        {% endif %}
+        {% if inq.expected_delivery %}
+          <div class="col-auto">Expected: <strong>{{ inq.expected_delivery.strftime('%Y-%m-%d') }}</strong></div>
+        {% endif %}
+        <div class="col-12"></div>
+        <div class="col-auto">Created: {{ inq.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
+        <div class="col-auto">Updated: {{ inq.updated_at.strftime('%Y-%m-%d %H:%M') }}</div>
+      </div>
+    </div>
+
+    <!-- Items -->
+    <div class="card p-3 mt-3">
+      <div class="d-flex justify-content-between align-items-center">
+        <h6 class="mb-0">Items</h6>
+      </div>
+      <hr class="my-2">
+      <ul class="list-group list-group-flush">
+        {% for it in inq.items %}
+          <li class="list-group-item d-flex justify-content-between align-items-center">
+            <div class="me-3">{{ it.product_name }}</div>
+            <span class="badge text-bg-light">{{ it.qty }} {{ it.unit }}</span>
+          </li>
+        {% else %}
+          <li class="list-group-item text-muted">No items yet.</li>
+        {% endfor %}
+      </ul>
+
+      <!-- Add item form -->
+      <form class="mt-3" method="post" action="{{ url_for('add_item', inquiry_id=inq.id) }}">
+        {{ item_form.hidden_tag() }}
+        <div class="row g-2">
+          <div class="col-12 col-md-7">
+            {{ item_form.product_name(class="form-control", placeholder="Product name") }}
+          </div>
+          <div class="col-6 col-md-3">
+            {{ item_form.qty(class="form-control", placeholder="Qty") }}
+          </div>
+          <div class="col-6 col-md-2">
+            {{ item_form.unit(class="form-control", placeholder="Unit") }}
+          </div>
+        </div>
+        <div class="mt-2">
+          <button class="btn btn-outline-primary btn-sm">Add Item</button>
+          <a href="{{ url_for('index') }}" class="btn btn-light btn-sm ms-1">Back</a>
+        </div>
+      </form>
+    </div>
+
+    <!-- Status history -->
+    <div class="card p-3 mt-3">
+      <h6 class="mb-0">Status History</h6>
+      <hr class="my-2">
+      <ul class="list-group list-group-flush">
+        {% for ev in inq.events|sort(attribute='created_at', reverse=True) %}
+          <li class="list-group-item">
+            <div class="d-flex justify-content-between">
+              <strong>{{ ev.status }}</strong>
+              <span class="text-muted small">{{ ev.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
+            </div>
+            {% if ev.note %}<div class="small mt-1">{{ ev.note }}</div>{% endif %}
+          </li>
+        {% else %}
+          <li class="list-group-item text-muted">No history yet.</li>
+        {% endfor %}
+      </ul>
+
+      <!-- Update status form -->
+      <form class="mt-3" method="post" action="{{ url_for('update_status', inquiry_id=inq.id) }}">
+        {{ status_form.hidden_tag() }}
+        <div class="row g-2">
+          <div class="col-12 col-md-4">
+            {{ status_form.status(class="form-select") }}
+          </div>
+          <div class="col-12 col-md-8">
+            {{ status_form.note(class="form-control", placeholder="Optional note") }}
+          </div>
+        </div>
+        <div class="mt-2">
+          <button class="btn btn-outline-success btn-sm">Update Status</button>
+        </div>
+      </form>
+    </div>
+
+  </div>
+
+  <!-- Sidebar -->
+  <div class="col-12 col-lg-4">
+    <div class="card p-3">
+      <h6 class="mb-2">Client</h6>
+      <div class="fw-semibold">{{ inq.client.name }}</div>
+      {% if inq.client.company %}<div class="small">{{ inq.client.company }}</div>{% endif %}
+      <div class="small text-muted mt-2">
+        {% if inq.client.phone %}☎ {{ inq.client.phone }}<br>{% endif %}
+        {% if inq.client.email %}✉ {{ inq.client.email }}{% endif %}
+      </div>
+      {% if inq.client.notes %}
+        <hr>
+        <div class="small">{{ inq.client.notes }}</div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}
