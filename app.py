@@ -28,7 +28,18 @@ def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", secrets.token_hex(16))
     # Use SQLite locally; override with DATABASE_URL (e.g., Postgres) in production
-    app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "sqlite:///procure.db")
+    # DATABASE_URL=postgresql://wsi_x2gu_user:kQweKESIUpuJjUenzxpeRIBLRDjkwrb4@dpg-d1p8k9idbo4c7386lmj0-a.frankfurt-postgres.render.com/wsi_x2gu
+
+    #app.config["SQLALCHEMY_DATABASE_URI"] = postgresql://wsi_x2gu_user:kQweKESIUpuJjUenzxpeRIBLRDjkwrb4@dpg-d1p8k9idbo4c7386lmj0-a.frankfurt-postgres.render.com/wsi_x2gu
+    
+    # H A R D - C O D E D  (for local testing only)
+    app.config["SQLALCHEMY_DATABASE_URI"] = (
+        "postgresql+psycopg2://wsi_x2gu_user:"
+        "kQweKESIUpuJjUenzxpeRIBLRDjkwrb4"
+        "@dpg-d1p8k9idbo4c7386lmj0-a.frankfurt-postgres.render.com/"
+        "wsi_x2gu?sslmode=require"
+    )
+    
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     return app
 
