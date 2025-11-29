@@ -5,7 +5,7 @@ from datetime import datetime, date
 from dotenv import load_dotenv
 from flask import (
     Flask, render_template, redirect, url_for,
-    request, flash, jsonify
+    request, flash, jsonify, current_app
 )
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import FlaskForm
@@ -20,9 +20,30 @@ from flask_login import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
+from werkzeug.utils import secure_filename
+from flask_wtf.file import FileField, FileAllowed   # put this near your other imports
+
+from flask import send_from_directory
+
+
+# allowed file types
+ALLOWED_QUOTE_EXT = ["pdf", "png", "jpg", "jpeg"]
+
 # Load environment from .env (useful locally; on Render use service env vars)
 load_dotenv()
 
+
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+STATUS_LIST = [
+    "New",
+    "Quoted",
+    "Ordered",
+    "Supplier Payment",
+    "Shipped",
+    "Delivered",
+    "Payment",
+]
 
 def create_app():
     app = Flask(__name__)
@@ -41,6 +62,17 @@ def create_app():
     )
     
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+    # ------------- PERSISTENT UPLOAD ROOT -------------
+    # On Render, set DISK_ROOT=/var/data (the disk mount path)
+    disk_root = os.getenv("DISK_ROOT", os.path.join(BASE_DIR, "static"))
+    app.config["UPLOAD_DISK_ROOT"] = disk_root
+
+    # Keep everything under a "quotes" subfolder on the disk
+    quotes_dir = os.path.join(disk_root, "quotes")
+    os.makedirs(quotes_dir, exist_ok=True)
+    app.config["UPLOAD_FOLDER_QUOTES"] = quotes_dir
+
     return app
 
 
@@ -101,13 +133,32 @@ class StatusForm(FlaskForm):
     status = SelectField(
         "Status",
         choices=[
-            ("New", "New"), ("Quoted", "Quoted"), ("Ordered", "Ordered"), ("Shipped", "Shipped"),
-            ("Delivered", "Delivered"), ("Closed", "Closed"), ("Lost", "Lost")
+            ("New", "New"), ("Quoted", "Quoted"), ("Ordered", "Ordered"), ("Supplier Payment", "Supplier Payment"),("Shipped", "Shipped"),
+            ("Delivered", "Delivered"), ("Payment", "Payment")
         ],
         default="New"
     )
     note = TextAreaField("Note", validators=[Optional()])
 
+    # new: 3 quotes + which one is selected
+    quote1 = FileField("Quote 1", validators=[Optional(), FileAllowed(ALLOWED_QUOTE_EXT)])
+    quote2 = FileField("Quote 2", validators=[Optional(), FileAllowed(ALLOWED_QUOTE_EXT)])
+    quote3 = FileField("Quote 3", validators=[Optional(), FileAllowed(ALLOWED_QUOTE_EXT)])
+    selected_quote = SelectField(
+        "Selected",
+        choices=[("1", "Quote 1"), ("2", "Quote 2"), ("3", "Quote 3")],
+        validators=[Optional()]
+    )
+
+    # NEW — PO upload
+    po_file = FileField("Client PO", validators=[Optional(), FileAllowed(ALLOWED_QUOTE_EXT)])
+
+    proof_of_delivery = FileField("Proof of Delivery", validators=[Optional(), FileAllowed(ALLOWED_QUOTE_EXT)])
+
+    proof_of_delivery = FileField(
+    "Proof of Delivery",
+    validators=[Optional(), FileAllowed(ALLOWED_QUOTE_EXT)]
+)
 
 # ---------- Models (all with _afrigrown postfix) ----------
 class User(UserMixin, db.Model):
@@ -162,10 +213,26 @@ class Inquiry(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+
+
     # relationships
     client = db.relationship("Client", back_populates="inquiries")
     items = db.relationship("InquiryItem", back_populates="inquiry", cascade="all, delete-orphan", lazy=True)
     events = db.relationship("StatusEvent", back_populates="inquiry", cascade="all, delete-orphan", lazy=True)
+
+    quotes = db.relationship("QuoteOption", backref="inquiry",cascade="all, delete-orphan", lazy=True)
+
+    # at top of Inquiry model
+    #po_files = db.relationship("PurchaseOrder", backref="inquiry", cascade="all, delete-orphan", lazy=True)
+
+    # 🔴 FIXED: use back_populates instead of backref
+    po_files = db.relationship("PurchaseOrder", back_populates="inquiry",
+                               cascade="all, delete-orphan", lazy=True)
+    
+    # NEW: Proof of Delivery files
+    pods = db.relationship("ProofOfDelivery", back_populates="inquiry",
+                           cascade="all, delete-orphan", lazy=True)
+
 
 
 class InquiryItem(db.Model):
@@ -196,20 +263,79 @@ class StatusEvent(db.Model):
     actor = db.relationship("User", back_populates="status_events")
 
 
+class QuoteOption(db.Model):
+    __tablename__ = "quote_options_afrigrown"
+
+    id = db.Column(db.Integer, primary_key=True)
+    inquiry_id = db.Column(db.Integer, db.ForeignKey("inquiries_afrigrown.id"), nullable=False)
+    label = db.Column(db.String(20))          # e.g. "Quote 1"
+    file_name = db.Column(db.String(255))
+    file_path = db.Column(db.String(255))     # relative path under static/...
+    is_selected = db.Column(db.Boolean, default=False)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey("users_afrigrown.id"))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class PurchaseOrder(db.Model):
+    __tablename__ = "purchase_orders_afrigrown"
+
+    id = db.Column(db.Integer, primary_key=True)
+    inquiry_id = db.Column(db.Integer, db.ForeignKey("inquiries_afrigrown.id"), nullable=False)
+    file_name = db.Column(db.String(255))
+    file_path = db.Column(db.String(255))
+    uploaded_by = db.Column(db.Integer, db.ForeignKey("users_afrigrown.id"))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    #inquiry = db.relationship("Inquiry", backref="po_files")
+
+    # 🔴 FIXED: match back_populates, no backref here
+    inquiry = db.relationship("Inquiry", back_populates="po_files")
+
+
+class ProofOfDelivery(db.Model):
+    __tablename__ = "proof_of_delivery_afrigrown"
+
+    id = db.Column(db.Integer, primary_key=True)
+    inquiry_id = db.Column(db.Integer, db.ForeignKey("inquiries_afrigrown.id"), nullable=False)
+    file_name = db.Column(db.String(255))
+    file_path = db.Column(db.String(255))
+    uploaded_by = db.Column(db.Integer, db.ForeignKey("users_afrigrown.id"))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    inquiry = db.relationship("Inquiry", back_populates="pods")
+
+
 # ---------- Routes ----------
+#@app.route("/")
+#@login_required
+#def index():
+    # Quick stats for dashboard
+#    stats = {
+#        "total": Inquiry.query.count(),
+#        "new": Inquiry.query.filter_by(status="New").count(),
+#        "quoted": Inquiry.query.filter_by(status="Quoted").count(),
+#        "shipped": Inquiry.query.filter_by(status="Shipped").count(),
+#    }
+#    recent = Inquiry.query.order_by(Inquiry.updated_at.desc()).limit(10).all()
+#    return render_template("index.html", stats=stats, recent=recent)
+
 @app.route("/")
 @login_required
 def index():
     # Quick stats for dashboard
     stats = {
-        "total": Inquiry.query.count(),
-        "new": Inquiry.query.filter_by(status="New").count(),
-        "quoted": Inquiry.query.filter_by(status="Quoted").count(),
-        "shipped": Inquiry.query.filter_by(status="Shipped").count(),
+        "total": Inquiry.query.count()
     }
-    recent = Inquiry.query.order_by(Inquiry.updated_at.desc()).limit(10).all()
-    return render_template("index.html", stats=stats, recent=recent)
 
+    # counts for each status in STATUS_LIST
+    for s in STATUS_LIST:
+        stats[s] = Inquiry.query.filter_by(status=s).count()
+
+    recent = Inquiry.query.order_by(Inquiry.updated_at.desc()).limit(10).all()
+    return render_template("index.html",
+                           stats=stats,
+                           recent=recent,
+                           statuses=STATUS_LIST)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -305,18 +431,110 @@ def add_item(inquiry_id):
 def update_status(inquiry_id):
     inq = Inquiry.query.get_or_404(inquiry_id)
     form = StatusForm()
-    if form.validate_on_submit():
-        inq.status = form.status.data
-        db.session.add(StatusEvent(
-            inquiry_id=inq.id,
-            status=form.status.data,
-            note=form.note.data,
-            created_by=current_user.id
-        ))
-        db.session.commit()
-        flash("Status updated", "success")
-    else:
+
+    if not form.validate_on_submit():
         flash("Invalid status", "danger")
+        return redirect(url_for("inquiry_detail", inquiry_id=inq.id))
+
+    new_status = form.status.data
+
+    # If moving to Quoted and no quotes yet, require 3 uploads
+    if new_status == "Quoted" and len(inq.quotes) == 0:
+        files = [form.quote1.data, form.quote2.data, form.quote3.data]
+        if not all(files):
+            flash("You must upload 3 quote files before setting status to Quoted.", "danger")
+            return redirect(url_for("inquiry_detail", inquiry_id=inq.id))
+
+        if not form.selected_quote.data:
+            flash("Please select which quote was approved.", "danger")
+            return redirect(url_for("inquiry_detail", inquiry_id=inq.id))
+
+        upload_dir = current_app.config["UPLOAD_FOLDER_QUOTES"]
+        selected_index = int(form.selected_quote.data)
+
+        # save each file
+        for idx, f in enumerate(files, start=1):
+            if not f:
+                continue
+            filename = secure_filename(f.filename)
+            # make it unique
+            final_name = f"inq{inq.id}_q{idx}_{int(datetime.utcnow().timestamp())}_{filename}"
+            save_path = os.path.join(upload_dir, final_name)
+            f.save(save_path)
+
+            rel_path = f"quotes/{final_name}"  # <<< IMPORTANT CHANGE
+            opt = QuoteOption(
+                inquiry_id=inq.id,
+                label=f"Quote {idx}",
+                file_name=filename,
+                file_path=rel_path,
+                is_selected=(idx == selected_index),
+                uploaded_by=current_user.id
+            )
+            db.session.add(opt)
+
+    # If moving to "Ordered", require a PO file
+    if new_status == "Ordered":
+        if not form.po_file.data:
+            flash("You must upload a Client PO before moving to 'Ordered'.", "danger")
+            return redirect(url_for('inquiry_detail', inquiry_id=inq.id))
+
+        # save PO file
+        f = form.po_file.data
+        filename = secure_filename(f.filename)
+        final_name = f"inq{inq.id}_PO_{int(datetime.utcnow().timestamp())}_{filename}"
+
+        upload_dir = current_app.config["UPLOAD_FOLDER_QUOTES"]  # same folder for now
+        save_path = os.path.join(upload_dir, final_name)
+        f.save(save_path)
+
+        rel_path = f"quotes/{final_name}"  # static URL path
+
+        po = PurchaseOrder(
+            inquiry_id=inq.id,
+            file_name=filename,
+            file_path=rel_path,
+            uploaded_by=current_user.id
+        )
+        db.session.add(po)
+
+
+    # only force POD if there is no POD yet
+    if new_status == "Delivered" and len(getattr(inq, "pods", [])) == 0:
+        f = form.proof_of_delivery.data
+
+        # f can be None or have empty filename if user didn't pick a file
+        if not f or f.filename == "":
+            flash("You must upload a Proof of Delivery before marking as Delivered.", "danger")
+            return redirect(url_for("inquiry_detail", inquiry_id=inq.id))
+
+        filename = secure_filename(f.filename)
+        final_name = f"inq{inq.id}_POD_{int(datetime.utcnow().timestamp())}_{filename}"
+
+        upload_dir = current_app.config["UPLOAD_FOLDER_QUOTES"]
+        save_path = os.path.join(upload_dir, final_name)
+        f.save(save_path)
+
+        rel_path = f"quotes/{final_name}"
+
+        pod = ProofOfDelivery(
+            inquiry_id=inq.id,
+            file_name=filename,
+            file_path=rel_path,
+            uploaded_by=current_user.id,
+        )
+        db.session.add(pod)
+
+    # update status + history event
+    inq.status = new_status
+    db.session.add(StatusEvent(
+        inquiry_id=inq.id,
+        status=new_status,
+        note=form.note.data,
+        created_by=current_user.id
+    ))
+    db.session.commit()
+    flash("Status updated", "success")
     return redirect(url_for("inquiry_detail", inquiry_id=inq.id))
 
 
@@ -393,6 +611,37 @@ def api_create_inquiry():
 
     db.session.commit()
     return jsonify({"id": inq.id, "status": "created"}), 201
+
+
+@app.route("/inquiries")
+@login_required
+def inquiry_list():
+    status = request.args.get("status")  # e.g. "Delivered"
+
+    q = Inquiry.query.order_by(Inquiry.updated_at.desc())
+    title = "All Inquiries"
+
+    if status:
+        q = q.filter_by(status=status)
+        title = f"{status} Inquiries"
+
+    inquiries = q.all()
+
+    return render_template(
+        "inquiry_list.html",
+        inquiries=inquiries,
+        status=status,
+        title=title,
+    )
+
+
+@app.route("/uploads/<path:filename>")
+@login_required
+def uploaded_file(filename):
+    """Serve uploaded files (quotes, POs, PODs) from the persistent disk."""
+    root = current_app.config["UPLOAD_DISK_ROOT"]
+    return send_from_directory(root, filename)
+
 
 
 # ---------- CLI Helper ----------
@@ -478,6 +727,7 @@ def seed_demo():
 # ---------- Dev entry ----------
 if __name__ == "__main__":
     with app.app_context():
+        #init_db()
         db.create_all()
     
     # For production on Render, use gunicorn: `gunicorn app:app`

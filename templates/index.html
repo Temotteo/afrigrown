@@ -1,58 +1,93 @@
-{% extends 'base.html' %}
-{% block title %}Dashboard — AfriGrown{% endblock %}
+{% extends "base.html" %}
+
 {% block content %}
 
-<div class="row g-3">
-  <!-- KPI cards -->
-  <div class="col-6 col-md-3">
-    <div class="card p-3">
-      <div class="text-muted small">Total Inquiries</div>
-      <div class="fs-3 fw-bold">{{ stats.total }}</div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card p-3">
-      <div class="text-muted small">New</div>
-      <div class="fs-3 fw-bold">{{ stats.new }}</div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card p-3">
-      <div class="text-muted small">Quoted</div>
-      <div class="fs-3 fw-bold">{{ stats.quoted }}</div>
-    </div>
-  </div>
-  <div class="col-6 col-md-3">
-    <div class="card p-3">
-      <div class="text-muted small">In Transit</div>
-      <div class="fs-3 fw-bold">{{ stats.shipped }}</div>
-    </div>
-  </div>
-</div>
+<div class="container py-4">
 
-<div class="card p-3 mt-3">
-  <div class="d-flex justify-content-between align-items-center">
-    <h6 class="mb-0">Recent Inquiries</h6>
-    <a class="btn btn-sm btn-success" href="{{ url_for('new_inquiry') }}">+ New Inquiry</a>
-  </div>
-  <hr>
-  <div class="list-group list-group-flush">
-    {% for inq in recent %}
-      <a href="{{ url_for('inquiry_detail', inquiry_id=inq.id) }}"
-         class="list-group-item list-group-item-action d-flex justify-content-between align-items-start">
-        <div class="me-3">
-          <div class="fw-semibold">{{ inq.title }}</div>
-          <div class="small text-muted">
-            {{ inq.client.name }}{% if inq.client.company %} · {{ inq.client.company }}{% endif %}
-            • {{ inq.updated_at.strftime('%Y-%m-%d %H:%M') }}
-          </div>
+    <!-- Dashboard Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="fw-bold">Dashboard</h3>
+        <a href="{{ url_for('new_inquiry') }}" class="btn btn-success">
+            + New Inquiry
+        </a>
+    </div>
+
+    <!-- Dashboard Stats -->
+    <div class="row g-3 mb-4">
+
+        <!-- TOTAL INQUIRIES -->
+        <div class="col-6 col-md-3 col-lg-2">
+            <a href="{{ url_for('inquiry_list') }}" class="text-decoration-none text-dark">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body py-3">
+                        <div class="small text-muted">Total Inquiries</div>
+                        <div class="fs-4 fw-bold">{{ stats["total"] }}</div>
+                    </div>
+                </div>
+            </a>
         </div>
-        <span class="badge text-bg-secondary align-self-center">{{ inq.status }}</span>
-      </a>
-    {% else %}
-      <div class="list-group-item text-muted">No inquiries yet.</div>
-    {% endfor %}
-  </div>
+
+        <!-- One card per status -->
+        {% for status in statuses %}
+        <div class="col-6 col-md-3 col-lg-2">
+            <a href="{{ url_for('inquiry_list', status=status) }}"
+               class="text-decoration-none text-dark">
+                <div class="card border-0 shadow-sm h-100">
+                    <div class="card-body py-3">
+                        <div class="small text-muted">{{ status }}</div>
+                        <div class="fs-4 fw-bold">
+                            {{ stats[status] if stats[status] else 0 }}
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
+
+    </div>
+
+    <!-- Recent Inquiries Section -->
+    <div class="card shadow-sm border-0">
+        <div class="card-body">
+
+            <h5 class="fw-bold mb-3">Recent Inquiries</h5>
+
+            {% if recent %}
+                <div class="list-group">
+
+                    {% for inq in recent %}
+                    <a class="list-group-item list-group-item-action py-3"
+                       href="{{ url_for('inquiry_detail', inquiry_id=inq.id) }}">
+
+                        <div class="d-flex justify-content-between">
+                            <div>
+                                <div class="fw-bold">{{ inq.title }}</div>
+                                <div class="text-muted small">
+                                    Client: {{ inq.client.name }}
+                                    {% if inq.client.company %} · {{ inq.client.company }}{% endif %}
+                                    · Status: <span class="fw-semibold">{{ inq.status }}</span>
+                                </div>
+                            </div>
+
+                            <div class="text-end small text-muted">
+                                Updated: {{ inq.updated_at.strftime("%Y-%m-%d %H:%M") }}
+                            </div>
+                        </div>
+
+                    </a>
+                    {% endfor %}
+
+                </div>
+
+            {% else %}
+                <div class="text-center py-5 text-muted">
+                    No inquiries found yet.
+                </div>
+            {% endif %}
+
+        </div>
+    </div>
+
 </div>
 
 {% endblock %}

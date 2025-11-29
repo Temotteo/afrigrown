@@ -1,148 +1,278 @@
-{% extends 'base.html' %}
-{% block title %}Inquiry #{{ inq.id }} — {{ inq.title }}{% endblock %}
-
+{% extends "base.html" %}
 {% block content %}
-<div class="row g-3">
 
-  <!-- Main column -->
-  <div class="col-12 col-lg-8">
+<div class="container mt-4">
 
-    <!-- Header card -->
-    <div class="card p-3">
-      <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
-        <div>
-          <h5 class="mb-1">{{ inq.title }}</h5>
-          <div class="small text-muted">
-            Client: <strong>{{ inq.client.name }}</strong>
-            {% if inq.client.company %} · {{ inq.client.company }}{% endif %}
-          </div>
-        </div>
-        <span class="badge text-bg-secondary">{{ inq.status }}</span>
-      </div>
+    
 
-      {% if inq.description %}
-        <p class="mt-2 mb-2">{{ inq.description }}</p>
-      {% endif %}
+    <div class="row">
+        <!-- Main column -->
+        <div class="col-md-8">
 
-      <div class="row g-2 small text-muted">
-        <div class="col-auto">Priority: <strong>{{ inq.priority }}</strong></div>
-        {% if inq.budget %}
-          <div class="col-auto">Budget: <strong>{{ inq.currency }} {{ '%.2f'|format(inq.budget) }}</strong></div>
-        {% endif %}
-        {% if inq.expected_delivery %}
-          <div class="col-auto">Expected: <strong>{{ inq.expected_delivery.strftime('%Y-%m-%d') }}</strong></div>
-        {% endif %}
-        <div class="col-12"></div>
-        <div class="col-auto">Created: {{ inq.created_at.strftime('%Y-%m-%d %H:%M') }}</div>
-        <div class="col-auto">Updated: {{ inq.updated_at.strftime('%Y-%m-%d %H:%M') }}</div>
-      </div>
-    </div>
+            <!-- Inquiry Header -->
+            <div class="border rounded p-3 mb-3 bg-white">
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <div>
+                        <h5 class="mb-1">{{ inq.title }}</h5>
+                        <div class="small text-muted">
+                            Client:
+                            <strong>{{ inq.client.name }}</strong>
+                            {% if inq.client.company %} • {{ inq.client.company }}{% endif %}<br>
+                            Priority: <strong>{{ inq.priority }}</strong><br>
+                            Created: {{ inq.created_at.strftime('%Y-%m-%d %H:%M') }}
+                            • Updated: {{ inq.updated_at.strftime('%Y-%m-%d %H:%M') }}
+                        </div>
+                    </div>
+                    <span class="badge bg-secondary">{{ inq.status }}</span>
+                </div>
+            </div>
 
-    <!-- Items -->
-    <div class="card p-3 mt-3">
-      <div class="d-flex justify-content-between align-items-center">
-        <h6 class="mb-0">Items</h6>
-      </div>
-      <hr class="my-2">
-      <ul class="list-group list-group-flush">
-        {% for it in inq.items %}
-          <li class="list-group-item d-flex justify-content-between align-items-center">
-            <div class="me-3">{{ it.product_name }}</div>
-            <span class="badge text-bg-light">{{ it.qty }} {{ it.unit }}</span>
-          </li>
-        {% else %}
-          <li class="list-group-item text-muted">No items yet.</li>
-        {% endfor %}
-      </ul>
+            <!-- Items -->
+            <div class="border rounded p-3 mb-3 bg-white">
+                <h6>Items</h6>
 
-      <!-- Add item form -->
-      <form class="mt-3" method="post" action="{{ url_for('add_item', inquiry_id=inq.id) }}">
-        {{ item_form.hidden_tag() }}
-        <div class="row g-2">
-          <div class="col-12 col-md-7">
-            {{ item_form.product_name(class="form-control", placeholder="Product name") }}
-          </div>
-          <div class="col-6 col-md-3">
-            {{ item_form.qty(class="form-control", placeholder="Qty") }}
-          </div>
-          <div class="col-6 col-md-2">
-            {{ item_form.unit(class="form-control", placeholder="Unit") }}
-          </div>
-        </div>
-        <div class="mt-2">
-          <button class="btn btn-outline-primary btn-sm">Add Item</button>
-          <a href="{{ url_for('index') }}" class="btn btn-light btn-sm ms-1">Back</a>
-        </div>
-      </form>
-    </div>
+                {% if inq.items|length == 0 %}
+                    <div class="small text-muted">No items yet.</div>
+                {% else %}
+                    <ul class="list-group list-group-flush mb-2">
+                        {% for item in inq.items %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <span>{{ item.product_name }}</span>
+                                <span class="badge bg-light text-dark">
+                                    {{ item.qty }} {{ item.unit }}
+                                </span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% endif %}
 
-    <!-- Status history -->
-    <div class="card p-3 mt-3">
-      <h6 class="mb-0">Status History</h6>
-      <hr class="my-2">
-      <ul class="list-group list-group-flush">
-  {% for ev in inq.events|sort(attribute='created_at', reverse=True) %}
-    <li class="list-group-item">
-      <div class="d-flex justify-content-between align-items-start">
-        <div>
-          <strong>{{ ev.status }}</strong>
-          <div class="small text-muted">
-            Updated by:
-            <span class="fw-semibold">
-              {{ ev.actor.name if ev.actor else 'System' }}
-            </span>
-            {% if ev.actor and ev.actor.email %}
-              <span class="text-muted">({{ ev.actor.email }})</span>
+                <form method="post"
+                      action="{{ url_for('add_item', inquiry_id=inq.id) }}"
+                      class="row g-2 mt-2">
+                    {{ item_form.hidden_tag() }}
+                    <div class="col-md-6">
+                        {{ item_form.product_name(class="form-control", placeholder="Product name") }}
+                    </div>
+                    <div class="col-md-3">
+                        {{ item_form.qty(class="form-control", placeholder="Qty") }}
+                    </div>
+                    <div class="col-md-3">
+                        {{ item_form.unit(class="form-control") }}
+                    </div>
+                    <div class="col-12 mt-2">
+                        <button class="btn btn-sm btn-primary">Add Item</button>
+                        <a href="{{ url_for('index') }}" class="btn btn-sm btn-light ms-1">Back</a>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Attached Quotes -->
+            {% if inq.quotes %}
+            <div class="border rounded p-3 mb-3 bg-white">
+                <h6>Attached Quotes</h6>
+                {% for q in inq.quotes %}
+                    <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                        <div>
+                            <strong>{{ q.label }}</strong>
+                            {% if q.is_selected %}
+                                <span class="badge bg-success ms-1">Selected</span>
+                            {% endif %}
+                            <div class="small text-muted">
+                                Uploaded {{ q.uploaded_at.strftime('%Y-%m-%d %H:%M') }}
+                            </div>
+                        </div>
+                        <a href="{{ url_for('uploaded_file', filename=q.file_path) }}"
+                           class="btn btn-sm btn-outline-secondary"
+                           target="_blank">View</a>
+                    </div>
+                {% endfor %}
+            </div>
             {% endif %}
-          </div>
+
+            <!-- Attached POs -->
+            {% if inq.po_files %}
+            <div class="border rounded p-3 mb-3 bg-white">
+                <h6>Client Purchase Order</h6>
+                {% for po in inq.po_files %}
+                    <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+                        <div>
+                            <strong>{{ po.file_name }}</strong>
+                            <div class="small text-muted">
+                                Uploaded {{ po.uploaded_at.strftime('%Y-%m-%d %H:%M') }}
+                            </div>
+                        </div>
+                        <a href="{{ url_for('uploaded_file', filename=po.file_path) }}"
+                           class="btn btn-sm btn-outline-secondary"
+                           target="_blank">View</a>
+                    </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            
+
+            
+
+{% if inq.pods %}
+<div class="border rounded p-3 mb-3 bg-white">
+    <h6>Proof of Delivery</h6>
+    {% for pod in inq.pods %}
+        <div class="d-flex justify-content-between align-items-center border-bottom py-2">
+            <div>
+                <strong>{{ pod.file_name }}</strong>
+                <div class="small text-muted">
+                    Uploaded {{ pod.uploaded_at.strftime('%Y-%m-%d %H:%M') }}
+                </div>
+            </div>
+            <a href="{{ url_for('uploaded_file', filename=pod.file_path) }}"
+               class="btn btn-sm btn-outline-secondary"
+               target="_blank">
+                View
+            </a>
         </div>
-        <span class="text-muted small">{{ ev.created_at.strftime('%Y-%m-%d %H:%M') }}</span>
-      </div>
-
-      {% if ev.note %}
-        <div class="small mt-1">{{ ev.note }}</div>
-      {% endif %}
-    </li>
-  {% else %}
-    <li class="list-group-item text-muted">No history yet.</li>
-  {% endfor %}
-</ul>
-
-      <!-- Update status form -->
-      <form class="mt-3" method="post" action="{{ url_for('update_status', inquiry_id=inq.id) }}">
-        {{ status_form.hidden_tag() }}
-        <div class="row g-2">
-          <div class="col-12 col-md-4">
-            {{ status_form.status(class="form-select") }}
-          </div>
-          <div class="col-12 col-md-8">
-            {{ status_form.note(class="form-control", placeholder="Optional note") }}
-          </div>
-        </div>
-        <div class="mt-2">
-          <button class="btn btn-outline-success btn-sm">Update Status</button>
-        </div>
-      </form>
-    </div>
-
-  </div>
-
-  <!-- Sidebar -->
-  <div class="col-12 col-lg-4">
-    <div class="card p-3">
-      <h6 class="mb-2">Client</h6>
-      <div class="fw-semibold">{{ inq.client.name }}</div>
-      {% if inq.client.company %}<div class="small">{{ inq.client.company }}</div>{% endif %}
-      <div class="small text-muted mt-2">
-        {% if inq.client.phone %}☎ {{ inq.client.phone }}<br>{% endif %}
-        {% if inq.client.email %}✉ {{ inq.client.email }}{% endif %}
-      </div>
-      {% if inq.client.notes %}
-        <hr>
-        <div class="small">{{ inq.client.notes }}</div>
-      {% endif %}
-    </div>
-  </div>
-
+    {% endfor %}
 </div>
+{% endif %}
+
+            <!-- Status History -->
+            <div class="border rounded p-3 mb-3 bg-white">
+                <h6 class="mb-2">Status History</h6>
+                <ul class="list-group list-group-flush">
+                    {% for ev in inq.events|sort(attribute='created_at', reverse=True) %}
+                        <li class="list-group-item">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>{{ ev.status }}</strong>
+                                    <div class="small text-muted">
+                                        Updated by:
+                                        <span class="fw-semibold">
+                                            {{ ev.actor.name if ev.actor else 'System' }}
+                                        </span>
+                                        {% if ev.actor and ev.actor.email %}
+                                            <span class="text-muted">({{ ev.actor.email }})</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <span class="small text-muted">
+                                    {{ ev.created_at.strftime('%Y-%m-%d %H:%M') }}
+                                </span>
+                            </div>
+                            {% if ev.note %}
+                                <div class="small mt-1">{{ ev.note }}</div>
+                            {% endif %}
+                        </li>
+                    {% else %}
+                        <li class="list-group-item text-muted">No history yet.</li>
+                    {% endfor %}
+                </ul>
+            </div>
+
+
+            
+
+            <!-- Status Update Form -->
+            <div class="border rounded p-3 mb-5 bg-white">
+                <h6>Update Status</h6>
+
+                <form method="post"
+                      action="{{ url_for('update_status', inquiry_id=inq.id) }}"
+                      enctype="multipart/form-data">
+
+                    {{ status_form.hidden_tag() }}
+
+                    <div class="row g-2 mb-2">
+                        <div class="col-md-4">
+                            {{ status_form.status(class="form-select") }}
+                        </div>
+                        <div class="col-md-8">
+                            {{ status_form.note(class="form-control", placeholder="Optional note...") }}
+                        </div>
+                    </div>
+
+                    <!-- QUOTE UPLOADS (only before status becomes Quoted) -->
+                    {% if inq.status == "New" %}
+                    <div class="border rounded p-2 mb-3">
+                        <div class="small fw-semibold mb-1">
+                            Quotes (required when changing status to <code>Quoted</code>)
+                        </div>
+
+                        <div class="row g-2">
+                            <div class="col-md-4">
+                                {{ status_form.quote1(class="form-control form-control-sm") }}
+                            </div>
+                            <div class="col-md-4">
+                                {{ status_form.quote2(class="form-control form-control-sm") }}
+                            </div>
+                            <div class="col-md-4">
+                                {{ status_form.quote3(class="form-control form-control-sm") }}
+                            </div>
+                        </div>
+
+                        <div class="mt-2">
+                            {{ status_form.selected_quote(class="form-select form-select-sm") }}
+                        </div>
+
+                        <div class="small text-muted mt-1">
+                            Allowed: PDF, PNG, JPG, JPEG.
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- PO UPLOAD (only before status becomes Ordered) -->
+                    {% if inq.status == "Quoted" %}
+                    <div class="border rounded p-2 mb-3">
+                        <div class="small fw-semibold mb-1">
+                            Client PO (required when moving to <code>Ordered</code>)
+                        </div>
+                        {{ status_form.po_file(class="form-control form-control-sm") }}
+                        <div class="small text-muted">
+                            Allowed: PDF, PNG, JPG, JPEG.
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- POD UPLOAD (only while Shipped, before Delivered) -->
+        {% if inq.status == "Shipped" %}
+        <div class="border rounded p-2 mb-3">
+            <div class="small fw-semibold mb-1">
+                Proof of Delivery (required when moving to <code>Delivered</code>)
+            </div>
+            {{ status_form.proof_of_delivery(class="form-control form-control-sm") }}
+            <div class="small text-muted">
+                Allowed: PDF, PNG, JPG, JPEG.
+            </div>
+        </div>
+        {% endif %}
+
+                    <button class="btn btn-success btn-sm">Update Status</button>
+                </form>
+            </div>
+
+        </div>
+
+        <!-- Sidebar: client info -->
+        <div class="col-md-4">
+            <div class="border rounded p-3 bg-white">
+                <h6>Client</h6>
+                <strong>{{ inq.client.name }}</strong><br>
+                {% if inq.client.company %}
+                    <small>{{ inq.client.company }}</small><br>
+                {% endif %}
+                <div class="mt-2 small text-muted">
+                    {% if inq.client.phone %}
+                        📞 {{ inq.client.phone }}<br>
+                    {% endif %}
+                    {% if inq.client.email %}
+                        ✉ {{ inq.client.email }}
+                    {% endif %}
+                </div>
+                {% if inq.client.notes %}
+                    <hr>
+                    <div class="small">{{ inq.client.notes }}</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
