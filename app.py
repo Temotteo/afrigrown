@@ -45,6 +45,16 @@ STATUS_LIST = [
     "Payment",
 ]
 
+STATUS_FLOW = [
+    "New",
+    "Quoted",
+    "Ordered",
+    "Supplier Payment",
+    "Shipped",
+    "Delivered",
+    "Payment",
+]
+
 def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", secrets.token_hex(16))
@@ -132,10 +142,7 @@ class ItemForm(FlaskForm):
 class StatusForm(FlaskForm):
     status = SelectField(
         "Status",
-        choices=[
-            ("New", "New"), ("Quoted", "Quoted"), ("Ordered", "Ordered"), ("Supplier Payment", "Supplier Payment"),("Shipped", "Shipped"),
-            ("Delivered", "Delivered"), ("Payment", "Payment")
-        ],
+        choices=[(s, s) for s in STATUS_FLOW],
         default="New"
     )
     note = TextAreaField("Note", validators=[Optional()])
@@ -159,6 +166,26 @@ class StatusForm(FlaskForm):
     "Proof of Delivery",
     validators=[Optional(), FileAllowed(ALLOWED_QUOTE_EXT)]
 )
+
+def configure_status_choices(form, current_status: str | None):
+    """
+    Limita as opções de status para o estado atual e os seguintes,
+    evitando que o utilizador volte para estados anteriores.
+    """
+    if not current_status:
+        form.status.choices = [(s, s) for s in STATUS_FLOW]
+        return
+
+    try:
+        idx = STATUS_FLOW.index(current_status)
+    except ValueError:
+        # se por algum motivo o estado não estiver na lista, mostra tudo
+        form.status.choices = [(s, s) for s in STATUS_FLOW]
+    else:
+        allowed = STATUS_FLOW[idx:]   # atual + próximos
+        form.status.choices = [(s, s) for s in allowed]
+
+
 
 # ---------- Models (all with _afrigrown postfix) ----------
 class User(UserMixin, db.Model):
@@ -403,7 +430,19 @@ def inquiry_detail(inquiry_id):
     inq = Inquiry.query.get_or_404(inquiry_id)
     item_form = ItemForm()
     status_form = StatusForm()
-    return render_template("inquiry_detail.html", inq=inq, item_form=item_form, status_form=status_form)
+
+#    return render_template("inquiry_detail.html", inq=inq, item_form=item_form, status_form=status_form)
+
+    # 🔹 limitar opções de status conforme o estado atual
+    configure_status_choices(status_form, inq.status)
+    status_form.status.data = inq.status  # selecionar o estado atual por defeito
+
+    return render_template(
+        "inquiry_detail.html",
+        inq=inq,
+        item_form=item_form,
+        status_form=status_form
+    )
 
 
 @app.route("/inquiries/<int:inquiry_id>/add_item", methods=["POST"])
@@ -431,6 +470,15 @@ def add_item(inquiry_id):
 def update_status(inquiry_id):
     inq = Inquiry.query.get_or_404(inquiry_id)
     form = StatusForm()
+
+    #if not form.validate_on_submit():
+    #    flash("Invalid status", "danger")
+    #    return redirect(url_for("inquiry_detail", inquiry_id=inq.id))
+
+    #new_status = form.status.data
+
+    # 🔹 MESMA configuração de choices, para o POST ser válido
+    configure_status_choices(form, inq.status)
 
     if not form.validate_on_submit():
         flash("Invalid status", "danger")
