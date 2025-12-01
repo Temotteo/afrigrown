@@ -167,6 +167,10 @@ class StatusForm(FlaskForm):
     validators=[Optional(), FileAllowed(ALLOWED_QUOTE_EXT)]
 )
 
+    # 🔹 NEW: final payment proof
+    payment_proof = FileField("Payment Proof", validators=[Optional(), FileAllowed(ALLOWED_QUOTE_EXT)])
+
+
 def configure_status_choices(form, current_status: str | None):
     """
     Limita as opções de status para o estado atual e os seguintes,
@@ -177,7 +181,7 @@ def configure_status_choices(form, current_status: str | None):
         return
 
     try:
-        idx = STATUS_FLOW.index(current_status)
+        idx = STATUS_FLOW.index(current_status) 
     except ValueError:
         # se por algum motivo o estado não estiver na lista, mostra tudo
         form.status.choices = [(s, s) for s in STATUS_FLOW]
@@ -259,6 +263,14 @@ class Inquiry(db.Model):
     # NEW: Proof of Delivery files
     pods = db.relationship("ProofOfDelivery", back_populates="inquiry",
                            cascade="all, delete-orphan", lazy=True)
+    
+    # 🔹 NEW: final payment proofs
+    payment_proofs = db.relationship(
+        "PaymentProof",
+        back_populates="inquiry",
+        cascade="all, delete-orphan",
+        lazy=True
+    )
 
 
 
@@ -330,6 +342,19 @@ class ProofOfDelivery(db.Model):
     uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     inquiry = db.relationship("Inquiry", back_populates="pods")
+
+
+class PaymentProof(db.Model):
+    __tablename__ = "payment_proofs_afrigrown"
+
+    id = db.Column(db.Integer, primary_key=True)
+    inquiry_id = db.Column(db.Integer, db.ForeignKey("inquiries_afrigrown.id"), nullable=False)
+    file_name = db.Column(db.String(255))
+    file_path = db.Column(db.String(255))
+    uploaded_by = db.Column(db.Integer, db.ForeignKey("users_afrigrown.id"))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    inquiry = db.relationship("Inquiry", back_populates="payment_proofs")
 
 
 # ---------- Routes ----------
@@ -573,6 +598,31 @@ def update_status(inquiry_id):
         )
         db.session.add(pod)
 
+    # 🔹 PAYMENT – require proof once
+    if new_status == "Payment" and len(getattr(inq, "payment_proofs", [])) == 0:
+        f = form.payment_proof.data
+        if not f or f.filename == "":
+            flash("You must upload a Payment Proof before marking as Payment.", "danger")
+            return redirect(url_for("inquiry_detail", inquiry_id=inq.id))
+
+        filename = secure_filename(f.filename)
+        final_name = f"inq{inq.id}_PAY_{int(datetime.utcnow().timestamp())}_{filename}"
+
+        upload_dir = current_app.config["UPLOAD_FOLDER_QUOTES"]
+        save_path = os.path.join(upload_dir, final_name)
+        f.save(save_path)
+
+        rel_path = f"quotes/{final_name}"
+
+        pay = PaymentProof(
+            inquiry_id=inq.id,
+            file_name=filename,
+            file_path=rel_path,
+            uploaded_by=current_user.id,
+        )
+        db.session.add(pay)
+
+
     # update status + history event
     inq.status = new_status
     db.session.add(StatusEvent(
@@ -681,6 +731,56 @@ def inquiry_list():
         status=status,
         title=title,
     )
+
+
+@app.route("/inquiries/<int:inquiry_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_inquiry(inquiry_id):
+    inq = Inquiry.query.get_or_404(inquiry_id)
+    form = InquiryForm()
+
+    if request.method == "POST":
+        if not form.validate_on_submit():
+            flash("Please fix the errors in the form.", "danger")
+            return render_template("inquiry_form.html", form=form, mode="edit", inq=inq)
+
+        # --- update client info (inline) ---
+        client = inq.client
+        client.name = form.client_name.data.strip()
+        client.company = (form.client_company.data or "").strip() or None
+        client.email = (form.client_email.data or "").strip() or None
+        client.phone = (form.client_phone.data or "").strip() or None
+
+        # --- update inquiry fields ---
+        inq.title = form.title.data.strip()
+        inq.description = form.description.data
+        inq.priority = form.priority.data
+        inq.budget = form.budget.data if form.budget.data is not None else None
+        inq.currency = form.currency.data
+        inq.expected_delivery = (
+            form.expected_delivery.data if form.expected_delivery.data else None
+        )
+
+        db.session.commit()
+        flash("Inquiry updated successfully.", "success")
+        return redirect(url_for("inquiry_detail", inquiry_id=inq.id))
+
+    # GET → pre-fill form with existing data
+    form.client_id.data = str(inq.client.id)
+    form.client_name.data = inq.client.name
+    form.client_company.data = inq.client.company or ""
+    form.client_email.data = inq.client.email or ""
+    form.client_phone.data = inq.client.phone or ""
+
+    form.title.data = inq.title
+    form.description.data = inq.description or ""
+    form.priority.data = inq.priority
+    form.budget.data = inq.budget
+    form.currency.data = inq.currency
+    form.expected_delivery.data = inq.expected_delivery
+
+    return render_template("inquiry_form.html", form=form, mode="edit", inq=inq)
+
 
 
 @app.route("/uploads/<path:filename>")
